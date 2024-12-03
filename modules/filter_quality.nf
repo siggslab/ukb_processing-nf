@@ -10,11 +10,6 @@ process filter_quality {
     script:
     
     """
-
-    if [ -z "${input_vcf}" ]; then
-        exit 0
-    fi
-
     # Extract the sample name from the VCF file using bcftools
     sample_name=\$(bcftools query -l "${input_vcf}" | head -n 1)
 

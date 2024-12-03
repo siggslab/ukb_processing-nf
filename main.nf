@@ -1,9 +1,14 @@
 include { filter_regions } from './modules/filter_regions'
 include { filter_quality } from './modules/filter_quality'
-
+include { annotate_vep } from './modules/annotate_vep'
 
 workflow {
-    vcf_ch = Channel.fromPath(params.vcf_file, checkIfExists: true )
-    filter_regions(vcf_ch, file(params.bed_file)).view().set{ valid_vcfs } 
-    filter_quality(valid_vcfs).view()
+      // Load input VCF
+    vcf_ch = Channel.fromPath(params.vcf_file, checkIfExists: true)
+    // Filter VCF by regions defined in BED file
+    filtered_regions_ch = filter_regions(vcf_ch, file(params.bed_file))
+    // Filter VCF by quality
+    quality_filtered_ch = filter_quality(filtered_regions_ch)
+    // Annotate VEP
+    annotate_vep(quality_filtered_ch)
 }
