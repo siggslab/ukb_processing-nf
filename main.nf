@@ -6,7 +6,7 @@ workflow {
       // Load input VCF
     vcf_ch = Channel.fromPath(params.vcf_file, checkIfExists: true)
     // Filter VCF by regions defined in BED file
-    filtered_regions_ch = filter_regions(vcf_ch, file(params.bed_file))
+    filtered_regions_ch = filter_regions(vcf_ch, file(params.bed_file)).view()
     // Filter VCF by quality
     quality_filtered_ch = filter_quality(filtered_regions_ch)
     // Annotate VEP

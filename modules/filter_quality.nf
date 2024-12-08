@@ -17,8 +17,10 @@ process filter_quality {
     output_file="\${sample_name}.filtered.vcf.gz"
 
     # Run bcftools filter with thresholds
-    bcftools filter -i 'FORMAT/DP >=10' "${input_vcf}"\\
-        -o "\${output_file}" -Oz 
+    bcftools filter \\
+        -i 'FORMAT/DP >= 20 && FORMAT/AD[0:1] >= 3 && FORMAT/F1R2[*] >= 1 && FORMAT/F2R1[*] >= 1' \\
+        "${input_vcf}" \\
+        -o "\${output_file}" -Oz
 
     # Index the output VCF
     bcftools index "\${output_file}"
