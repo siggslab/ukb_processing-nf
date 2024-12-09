@@ -6,8 +6,8 @@ process annotate_vep {
     path input_vcf    
 
     output:
-    path "*.annotated.vcf", optional: true
-    path "*.annotated.vcf_summary.html", optional: true
+    path "*.annotated_vep.vcf"
+    path "*.annotated_vep.vcf_summary.html", optional: true
 
     script:
     """
@@ -15,7 +15,7 @@ process annotate_vep {
     sample_name=\$(basename "${input_vcf}" | sed -E 's/\\.filtered\\.vcf\\.gz\$|\\.vcf\\.gz\$//')
 
     # Define the output file name based on the sample name
-    output_file="\${sample_name}.annotated.vcf"
+    output_file="\${sample_name}.annotated_vep.vcf"
 
     # Run VEP annotation
     vep \\
