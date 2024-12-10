@@ -7,8 +7,7 @@ process annotate_vep {
 
     output:
     path "*.annotated_vep.vcf"
-    path "*.annotated_vep.vcf_summary.html", optional: true
-
+    
     script:
     """
     # Extract the sample name from the VCF file

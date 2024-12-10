@@ -2,6 +2,8 @@ include { filter_regions } from './modules/filter_regions'
 include { filter_quality } from './modules/filter_quality'
 include { annotate_vep } from './modules/annotate_vep'
 include { annotate_annovar } from './modules/annotate_annovar'
+include { format_vcf } from './modules/format_and_merge'
+include { merge_vcf } from './modules/format_and_merge'
 
 workflow {
     // Load input VCF
@@ -11,7 +13,12 @@ workflow {
     // Filter VCF by quality
     quality_filtered_ch = filter_quality(filtered_regions_ch).view()
     // Annotate VEP
-    annotate_vep(quality_filtered_ch)
+    vep_ch = annotate_vep(quality_filtered_ch).view()
     // Annotate Annovar
-    annotate_annovar(quality_filtered_ch)
+    annovar_ch = annotate_annovar(quality_filtered_ch).view()
+    // Format the vcf for merge 
+    (formatted_vep, formatted_annovar) = format_vcf(vep_ch, annovar_ch)
+    // Merge vep and Annovar annotations
+    merge_vcf(formatted_vep, formatted_annovar)
+
 }
