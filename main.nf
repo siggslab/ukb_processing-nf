@@ -20,5 +20,4 @@ workflow {
     (formatted_vep, formatted_annovar) = format_vcf(vep_ch, annovar_ch)
     // Merge vep and Annovar annotations
     merge_vcf(formatted_vep, formatted_annovar)
-
 }
