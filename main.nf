@@ -4,6 +4,7 @@ include { annotate_vep } from './modules/annotate_vep'
 include { annotate_annovar } from './modules/annotate_annovar'
 include { format_vcf } from './modules/format_and_merge'
 include { merge_vcf } from './modules/format_and_merge'
+include { merge_phenotypes } from './modules/merge_phenotypes'
 
 workflow {
     // Load input VCF
@@ -19,5 +20,10 @@ workflow {
     // Format the vcf for merge 
     (formatted_vep, formatted_annovar) = format_vcf(vep_ch, annovar_ch)
     // Merge vep and Annovar annotations
-    merge_vcf(formatted_vep, formatted_annovar)
+    merge_vcf_ch = merge_vcf(formatted_vep, formatted_annovar)
+    // Integrate Phenotype data
+    merge_phenotypes(merge_vcf_ch,
+                    file(params.phenotype_csv),
+                    file(params.merge_phenotype_script)
+                    ).view()
 }
