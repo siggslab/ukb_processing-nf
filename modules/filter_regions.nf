@@ -5,7 +5,6 @@ process filter_regions {
     path bed_file       
 
     output:
-
     path "filtered.vcf.gz", optional: true
 
     script:

@@ -1,6 +1,6 @@
 process annotate_annovar {
     container "${params.containers.annovar}"
-    publishDir params.results_dir, mode: 'copy'
+    //publishDir params.results_dir, mode: 'copy'
 
     input:
     path input_vcf    

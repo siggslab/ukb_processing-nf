@@ -1,6 +1,6 @@
 process annotate_vep {
     container "${params.containers.ensembl_vep}"
-    publishDir params.results_dir, mode: 'copy'
+    //publishDir params.results_dir, mode: 'copy'
 
     input:
     path input_vcf    
