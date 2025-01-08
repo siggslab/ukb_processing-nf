@@ -1,16 +1,17 @@
 import pandas as pd
 import re
+import argparse
 import os
 
-def extract_and_clean_phenotypic_data(variant_csv, out_csv_files, output_dir):
+def extract_and_clean_phenotypic_data(variant_csv, phenotype_csv_files, output_file):
     """
     Extracts phenotypic data for the Participant ID in variant CSV, cleans arrays and instances, 
     and combines all into one CSV.
 
     Args:
         variant_csv (str): Path to the variant CSV.
-        out_csv_files (list): List of "must-use" phenotypic CSV file paths.
-        output_dir (str): Directory where intermediate and final files will be saved.
+        phenotype_csv_files (list): List of "must-use" phenotypic CSV file paths.
+        output_file (str): Output csv.
     """
     # Step 1: Load the variant CSV and get the Participant ID
     variant_df = pd.read_csv(variant_csv, sep='\t')
@@ -19,26 +20,22 @@ def extract_and_clean_phenotypic_data(variant_csv, out_csv_files, output_dir):
     # Initialize a list to store cleaned dataframes
     cleaned_dataframes = []
 
-    # Step 2: Process each "must-use" CSV
-    for out_csv in out_csv_files:
-        print(f"Processing {out_csv}...")
-        df = pd.read_csv(out_csv)
-
+    # Step 2: Process each "must-use" phenotype CSV
+    for phenotype_csv in phenotype_csv_files:
+        df = pd.read_csv(phenotype_csv)
+        if 'Participant ID' not in df.columns:
+            print("HEWJADJAWDBJ")
+            print(df.columns)
+            raise KeyError("The column 'Participant ID' is missing in the variant CSV.")
         # Extract rows matching the Participant ID
         participant_data = df[df['Participant ID'] == participant_id]
         
         if participant_data.empty:
-            print(f"No matching data found in {out_csv} for Participant ID: {participant_id}")
+            print(f"No matching data found in {phenotype_csv} for Participant ID: {participant_id}")
             continue
 
         # Clean up instances and arrays
         cleaned_df = clean_instances_and_arrays(participant_data)
-
-        # Save intermediate cleaned CSV
-        cleaned_csv_path = os.path.join(output_dir, f"cleaned_{os.path.basename(out_csv)}")
-        cleaned_df.to_csv(cleaned_csv_path, index=False)
-        print(f"Saved cleaned data to {cleaned_csv_path}")
-
         cleaned_dataframes.append(cleaned_df)
 
     # Step 3: Merge all cleaned phenotypic dataframes on Participant ID
@@ -47,15 +44,43 @@ def extract_and_clean_phenotypic_data(variant_csv, out_csv_files, output_dir):
         for df in cleaned_dataframes[1:]:
             combined_phenotypic_df = combined_phenotypic_df.merge(df, on='Participant ID', how='outer')
 
-        # Step 4: Combine phenotypic data with the variant data
-        final_combined_df = variant_df.merge(combined_phenotypic_df, on='Participant ID', how='left')
-
-        # Save the final combined CSV
-        final_output_path = os.path.join(output_dir, "final_combined_data.csv")
-        final_combined_df.to_csv(final_output_path, index=False)
-        print(f"Final combined CSV saved to {final_output_path}")
     else:
         print("No phenotypic data found to combine.")
+        # Create a blank phenotype DataFrame with columns from variant CSV and placeholders
+        combined_phenotypic_df = pd.DataFrame(columns=cleaned_dataframes.columns)
+        blank_row = {col: "" for col in combined_phenotypic_df.columns}
+        blank_row["Participant ID"] = participant_id  # Ensure Participant ID is filled
+        combined_phenotypic_df = combined_phenotypic_df.append(blank_row, ignore_index=True)
+        
+    # Step 4: Combine phenotypic data with the variant data
+    final_combined_df = variant_df.merge(combined_phenotypic_df, on='Participant ID', how='left')
+    # Save the final combined CSV
+    final_combined_df.to_csv(output_file, index=False)
+    print(f"Final combined CSV saved to {output_file}")
+    
+    if cleaned_dataframes is None or participant_id not in cleaned_dataframes:
+            log_missing_phenotype(participant_id)
+
+def log_missing_phenotype(participant_id, log_file_path="missing_phenotypes.txt"):
+    """
+    Logs participant IDs with missing phenotype data.
+
+    Args:
+        participant_id (str): The ID of the participant missing phenotype data.
+        log_file_path (str): Path to the log file.
+    """
+    # Check if the log file exists
+    file_exists = os.path.exists(log_file_path)
+
+    # Open the file in append mode and write the log
+    with open(log_file_path, "a") as log_file:
+        # Write a header if the file is new
+        if not file_exists:
+            log_file.write("Missing Phenotype Log\n")
+            log_file.write("Participant ID\n")
+            log_file.write("====================\n")
+        # Append the participant ID
+        log_file.write(f"{participant_id}\n")
 
 def clean_instances_and_arrays(df):
     # Step 1: Initialize final DataFrame and columns to maintain order
@@ -103,14 +128,12 @@ def clean_instances_and_arrays(df):
     new_df = new_df[final_columns]  
     return new_df
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--variant_csv", required=True)
+    parser.add_argument("--phenotype_csv_files", nargs='+', required=True)
+    parser.add_argument("--output_file", required=True)
+    args = parser.parse_args()
 
-# Example usage
-variant_csv = "UKB_4033866_301565080_annotations.csv"   # Replace with your variant CSV
-out_csv_files = ["test5.csv", "test1.csv", "test2.csv", "test3.csv", "test4.csv"]  # Must-use CSV files
-output_dir = "output_files"  # Directory to save cleaned and final files
-
-# Ensure the output directory exists
-os.makedirs(output_dir, exist_ok=True)
-
-# Run the process
-extract_and_clean_phenotypic_data(variant_csv, out_csv_files, output_dir)
+    extract_and_clean_phenotypic_data(args.variant_csv, args.phenotype_csv_files, args.output_file)
+    

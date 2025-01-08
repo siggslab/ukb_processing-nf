@@ -14,6 +14,7 @@ process merge_phenotypes {
     phenotypic_csvs=\$(cat ${csv_list_file} | tr -d '\\r' | tr '\\n' ' ')
     python3 ${python_script} --variant_csv ${variant_csv} \\
                             --phenotype_csv_files \${phenotypic_csvs} \\
-                            --output_file output_\${participant_id}.csv
+                            --output_file output_\${participant_id}.csv \\
+                            --log_file_path ${params.results_dir}/missing_phenotypes.txt
     """
 }
