@@ -18,7 +18,7 @@ process filter_quality {
 
     # Run bcftools filter with thresholds
     bcftools filter \\
-        -i 'FORMAT/DP >= 20 && FORMAT/AD[0:1] >= 3 && FORMAT/F1R2[*] >= 1 && FORMAT/F2R1[*] >= 1 && N_ALT=1' \\
+        -i 'FORMAT/DP >= 20 && FORMAT/AD[0:1] >= 3 && FORMAT/F1R2[*] >= 1 && FORMAT/F2R1[*] >= 1 & N_ALT=1 && FORMAT/DP != "." && FORMAT/AD !="." && FORMAT/F1R2 !="." && FORMAT/F2R1 !="."' \\
         "${input_vcf}" \\
         -o "output.vcf.gz" -Oz
 

@@ -3,13 +3,13 @@ process combine_csvs {
 
     input:
     file participant_csvs  // List of CSV files
-
+    val batch_name
     output:
-    path "UKB_mosaic_variants.csv"
+    path "*_UKB_mosaic_variants.csv"
 
     script:
     """
-    # Use awk to combine all CSV files into one, keeping the header from the first file only
-    awk 'NR==1{print; next} FNR>1' ${participant_csvs} > UKB_mosaic_variants.csv
+    # Combine all CSV files into one, keeping only the header from the first file
+    awk 'FNR==1 && NR!=1 {next} {print}' ${participant_csvs} > ${batch_name}_UKB_mosaic_variants.csv
     """
 }

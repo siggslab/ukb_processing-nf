@@ -1,5 +1,6 @@
 process merge_phenotypes {
     container "${params.containers.pandas}"
+
     input:
     path variant_csv
     path csv_list_file
@@ -15,6 +16,5 @@ process merge_phenotypes {
     python3 ${python_script} --variant_csv ${variant_csv} \\
                             --phenotype_csv_files \${phenotypic_csvs} \\
                             --output_file output_\${participant_id}.csv \\
-                            --log_file_path ${params.results_dir}/missing_phenotypes.txt
     """
 }

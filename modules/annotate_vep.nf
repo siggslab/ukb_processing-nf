@@ -26,5 +26,6 @@ process annotate_vep {
         --output_file "\${output_file}" \\
         --vcf \\
         --force_overwrite \\
+        --everything \\
     """
 }
