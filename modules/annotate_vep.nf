@@ -1,20 +1,17 @@
 process annotate_vep {
     container "${params.containers.ensembl_vep}"
-    //publishDir params.results_dir, mode: 'copy'
+    //publishDir params.intermediate_dir, mode: 'copy'
 
     input:
-    path input_vcf    
+    tuple val(id), path(input_vcf)
 
     output:
-    path "*.annotated_vep.vcf"
+    tuple val(id), path("*.annotated_vep.vcf")
     
     script:
     """
-    # Extract the sample name from the VCF file
-    sample_name=\$(basename "${input_vcf}" | sed -E 's/\\.filtered\\.vcf\\.gz\$|\\.vcf\\.gz\$//')
-
     # Define the output file name based on the sample name
-    output_file="\${sample_name}.annotated_vep.vcf"
+    output_file="${id}.annotated_vep.vcf"
 
     # Run VEP annotation
     vep \\
@@ -26,6 +23,7 @@ process annotate_vep {
         --output_file "\${output_file}" \\
         --vcf \\
         --force_overwrite \\
+        --pick \\
         --everything \\
     """
 }
