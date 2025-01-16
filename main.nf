@@ -36,7 +36,7 @@ workflow process_vcf {
         merge_vcf_ch,
         file(params.phenotype_csv),
         file(params.merge_phenotype_script)
-    ).view()
+    )
 
     emit:
     phenotypic_csv_ch
@@ -65,8 +65,8 @@ workflow {
     }
 
     // Process all the VCFs individually in parallel
-    csvs_ch = process_vcf(vcf_ch)
+    tsvs_ch = process_vcf(vcf_ch)
     // Combine the output CSV files
-    collected_csvs = csvs_ch.collectFile(name: 'participant_csvs', tempDir: params.results_dir).view()
-    combine_csvs(collected_csvs).view()
+    collected_tsvs = tsvs_ch.collect()
+    combine_csvs(collected_tsvs).view()
 }
