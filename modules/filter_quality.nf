@@ -28,7 +28,7 @@ process filter_quality {
     else
         # Save the filtered VCF output if variants are present
         mv "${id}.output_quality.vcf.gz" "\${output_file}"
-        bcftools index "\${output_file}"
+        bcftools index -t "\${output_file}"
     fi
     """
 }

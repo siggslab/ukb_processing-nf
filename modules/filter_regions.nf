@@ -13,7 +13,7 @@ process filter_regions {
     # Define the output file name based on the sample name
     output_file="${id}.filtered_regions.vcf.gz"
 
-    bcftools index "${vcf_file}"
+    bcftools index -t "${vcf_file}"
     bcftools view -R "${bed_file}" -i 'FILTER="PASS"' "${vcf_file}" -o "${id}.output.vcf.gz" -Oz
 
     # Check if there are any variants (excluding the header)
@@ -25,7 +25,7 @@ process filter_regions {
     else
         # Save the filtered VCF output if variants are present
         mv "${id}.output.vcf.gz" "\${output_file}"
-        bcftools index "\${output_file}"  # Index the VCF if it contains variants
+        bcftools index -t "\${output_file}"  # Index the VCF if it contains variants
     fi
     """
 }

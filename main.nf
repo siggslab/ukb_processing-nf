@@ -8,7 +8,6 @@ include { merge_vcf } from './modules/format_and_merge'
 include { merge_phenotypes } from './modules/merge_phenotypes'
 include { combine_csvs } from './modules/combine_csvs'
 include { format_csq_vep } from './modules/format_csq_vep'
-include { format_csvs } from './modules/format_csvs'
 
 workflow process_vcf {
     take:
@@ -56,14 +55,11 @@ process make_results_dir {
 workflow {
     // Create results directory if it doesn't exist
     make_results_dir(params.results_dir)
-
     csv = Channel.fromPath(params.vcf_csv, checkIfExists: true)
         .splitCsv(header: true)
-
     vcf_ch = csv.map { row ->
         [ row.sample_id, file(row.sample_vcf, checkIfExists: true) ]
     }
-
     // Process all the VCFs individually in parallel
     tsvs_ch = process_vcf(vcf_ch)
     // Combine the output CSV files
