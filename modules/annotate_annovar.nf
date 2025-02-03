@@ -1,6 +1,5 @@
 process annotate_annovar {
     container "${params.containers.annovar}"
-    //publishDir params.intermediate_dir, mode: 'copy'
 
     input:
     tuple val(id), path(input_vcf)    

@@ -1,10 +1,10 @@
 include { filter_regions } from './modules/filter_regions'
 include { filter_quality } from './modules/filter_quality'
 include { annotate_vep } from './modules/annotate_vep'
-include { annotate_annovar } from './modules/annotate_annovar'
-include { format_annovar } from './modules/format_and_merge'
+// include { annotate_annovar } from './modules/annotate_annovar'
+// include { format_annovar } from './modules/format_and_merge'
 include { format_vep } from './modules/format_and_merge'
-include { merge_vcf } from './modules/format_and_merge'
+include { vcf_to_csv } from './modules/format_and_merge'
 include { merge_phenotypes } from './modules/merge_phenotypes'
 include { combine_csvs } from './modules/combine_csvs'
 include { format_csq_vep } from './modules/format_csq_vep'
@@ -22,13 +22,13 @@ workflow process_vcf {
     // Reformat VEP Anno
     new_vep_ch = format_csq_vep(vep_ch, file(params.transform_vep_anno_script))
     // Annotate Annovar
-    annovar_ch = annotate_annovar(quality_filtered_ch)
+    //annovar_ch = annotate_annovar(quality_filtered_ch)
     // Format vep and annovar
     formatted_vep = format_vep(new_vep_ch)
-    formatted_annovar = format_annovar(annovar_ch)
-    // Merge the Annotations
-    combined_ch = formatted_vep.join(formatted_annovar).view()
-    merge_vcf_ch = merge_vcf(combined_ch)
+    //formatted_annovar = format_annovar(annovar_ch)
+    // // Merge the Annotations
+    // combined_ch = formatted_vep.join(formatted_annovar).view()
+    merge_vcf_ch = vcf_to_csv(formatted_vep)
 
     // Integrate Phenotype data
     phenotypic_csv_ch = merge_phenotypes(
@@ -64,5 +64,9 @@ workflow {
     tsvs_ch = process_vcf(vcf_ch)
     // Combine the output CSV files
     collected_tsvs = tsvs_ch.collect()
-    combine_csvs(collected_tsvs).view()
+
+    // Extract batch number from the CSV file name (e.g., '10_samplesheet.csv' -> '10')
+    file_name = params.vcf_csv.startsWith("/") ? params.vcf_csv.tokenize('/').last() : params.vcf_csv
+    batch_number = file_name.split('_')[0]  // This assumes the batch number is the first part of the file name
+    combine_csvs(collected_tsvs, batch_number)
 }

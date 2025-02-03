@@ -55,11 +55,12 @@ process format_vep {
     """
 }
 
-process merge_vcf {
+process vcf_to_csv {
     container "${params.containers.bcftools}"
     //publishDir params.results_dir, mode: 'copy'
     input:
-    tuple val(id), path(input_vep), path(input_annovar)
+    //tuple val(id), path(input_vep), path(input_annovar)
+    tuple val(id), path(input_vep)
 
     output:
     tuple val(id), path("*_annotations.csv")
@@ -67,10 +68,6 @@ process merge_vcf {
     """
     # Index the VCF files 
     bcftools index "${input_vep}"
-    bcftools index "${input_annovar}"
-
-    # Perform the merge using bcftools
-    bcftools merge "${input_vep}" "${input_annovar}" -o "${id}.annotated_merged.vcf.gz" -Oz
 
     # Query the merged VCF and add column headers
     output_csv="${id}_annotations.csv"
@@ -81,11 +78,11 @@ process merge_vcf {
     echo -e "Participant ID\\tCHROM\\tPOS\\tREF\\tALT\\tINFO\\tFORMAT\\tFORMAT_INFO"
 
     # Extract the VCF data and process it
-    bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT\\t%INFO\\t%FORMAT\n" "${id}.annotated_merged.vcf.gz" | \
+    bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT\\t%INFO\\t%FORMAT\n" "${id}_vep_formatted.vcf.gz" | \
     awk -v pid="${id}" '
         {
         # FORMAT column is the header (GT:AD:AF:DP:F1R2:F2R1:SB)
-        format_header = \$(NF-2);
+        format_header = \$(NF-1);
         format_info = \$NF;
         # Print the row with Participant ID and the split FORMAT and FORMAT_INFO columns
         print pid "\\t" \$1 "\\t" \$2 "\\t" \$3 "\\t" \$4 "\\t" \$5 "\\t" format_header "\\t" format_info;
