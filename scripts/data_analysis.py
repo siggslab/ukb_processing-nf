@@ -3,7 +3,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 import re
-import csv
+
 
 GENE_LIST = {
     "STING1", "LSM11", "RNU7-1", "CDC42", "STAT2", 
@@ -20,9 +20,15 @@ GENE_LIST = {
 
 
 # Load your data into a pandas DataFrame
-df = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/combined_output.tsv', sep='\t')
+df1 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/10_UKB_mosaic_variants.tsv', sep='\t')
+df2 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/11-24_UKB_mosiac_variants.tsv', sep='\t')
+df3 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/15-28_UKB_mosiac_variants.tsv', sep='\t')
+# Concatenate the dataframes
+merged_df = pd.concat([df1, df2, df3], ignore_index=True)
+
 # Ensure that 'POS' is a float
-df['POS'] = pd.to_numeric(df['POS'], errors='coerce')
+merged_df['POS'] = pd.to_numeric(merged_df['POS'], errors='coerce')
+
 iuis_iei = pd.read_excel('C:/Users/Ricky/Garvan/ukb_processing-nf/assets/IUIS IEI list for web site March 2022.xlsx')
 
 vexas_uba1_bed = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/assets/vexas_variants.bed', sep='\t', header=None, names=['CHROM', 'START', 'END'])
@@ -143,15 +149,21 @@ def extract_annotations(info):
     
     return annotations
 
-updated_df = replace_info_with_annotations(df)
+updated_df = replace_info_with_annotations(merged_df)
 pathogenic_df = filter_annotations(updated_df, iuis_iei, uba1_regions)
+
+pathogenic_df.to_csv('pathogenic_df.csv', index=False)
  
 # Remove rows in `filtered_df` from `updated_df`
 non_pathogenic_df = pd.concat([updated_df, pathogenic_df, pathogenic_df]).drop_duplicates(keep=False)
 
+# Group by 'Participant ID' and randomly select one row from each group
+non_pathogenic_df_single_variant = non_pathogenic_df.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
+
 # Define the biomarker columns
 biomarker_columns = [
     'C-reactive protein', 
+    'Rheumatoid factor',
     'Neutrophill count', 
     'Monocyte count', 
     'White blood cell (leukocyte) count',
@@ -164,22 +176,64 @@ biomarker_columns = [
 # Create an empty dictionary to store the results
 shapiro_results = {}
 
-# Loop through each biomarker and apply the Shapiro-Wilk test
+# Loop through each biomarker and apply the Shapiro-Wilk test for both datasets
 for biomarker in biomarker_columns:
-    data = pathogenic_df[biomarker].dropna()  # Drop missing values
-    stat, p_value = stats.shapiro(data)
-    shapiro_results[biomarker] = {'Statistic': stat, 'p-value': p_value}
+    # Drop missing values for both datasets
+    pathogenic_data = pathogenic_df[biomarker].dropna()
+    non_pathogenic_data = non_pathogenic_df[biomarker].dropna()
+    
+    # Perform Shapiro-Wilk test on both datasets
+    pathogenic_stat, pathogenic_p_value = stats.shapiro(pathogenic_data)
+    non_pathogenic_stat, non_pathogenic_p_value = stats.shapiro(non_pathogenic_data)
+    
+    # Store results for both datasets
+    shapiro_results[biomarker] = {
+        'Pathogenic_Statistic': pathogenic_stat, 
+        'Pathogenic_p-value': pathogenic_p_value,
+        'Non-Pathogenic_Statistic': non_pathogenic_stat, 
+        'Non-Pathogenic_p-value': non_pathogenic_p_value
+    }
 
 # Convert the results into a DataFrame for easier viewing
 shapiro_results_df = pd.DataFrame(shapiro_results).T
-# Add conclusions to the results
-shapiro_results_df['Conclusion'] = shapiro_results_df['p-value'].apply(
+
+# Add conclusions to the results for both datasets
+shapiro_results_df['Pathogenic_Conclusion'] = shapiro_results_df['Pathogenic_p-value'].apply(
     lambda x: 'Normally distributed' if x > 0.05 else 'Not normally distributed'
 )
 
-# Separate biomarkers into normally distributed and non-normally distributed
-normal_biomarkers = shapiro_results_df[shapiro_results_df['Conclusion'] == 'Normally distributed'].index
-non_normal_biomarkers = shapiro_results_df[shapiro_results_df['Conclusion'] == 'Not normally distributed'].index
+shapiro_results_df['Non-Pathogenic_Conclusion'] = shapiro_results_df['Non-Pathogenic_p-value'].apply(
+    lambda x: 'Normally distributed' if x > 0.05 else 'Not normally distributed'
+)
+
+# Separate biomarkers into normally distributed and non-normally distributed for both datasets
+normal_biomarkers_pathogenic = shapiro_results_df[shapiro_results_df['Pathogenic_Conclusion'] == 'Normally distributed'].index
+non_normal_biomarkers_pathogenic = shapiro_results_df[shapiro_results_df['Pathogenic_Conclusion'] == 'Not normally distributed'].index
+
+normal_biomarkers_non_pathogenic = shapiro_results_df[shapiro_results_df['Non-Pathogenic_Conclusion'] == 'Normally distributed'].index
+non_normal_biomarkers_non_pathogenic = shapiro_results_df[shapiro_results_df['Non-Pathogenic_Conclusion'] == 'Not normally distributed'].index
+
+# Create an empty dictionary to store p-values
+comparison_results = {}
+# Loop through each biomarker to perform the appropriate test
+for biomarker in biomarker_columns:
+    # Extract data for pathogenic and non-pathogenic
+    pathogenic_data = pathogenic_df[biomarker].dropna()
+    non_pathogenic_data = non_pathogenic_df_single_variant[biomarker].dropna()
+    
+    pathogenic_averages = pathogenic_df[biomarker].mean()
+    non_pathogenic_averages = non_pathogenic_df_single_variant[biomarker].mean()
+
+    # Perform Mann-Whitney U test if the biomarker is not normally distributed
+    stat, p_value = stats.mannwhitneyu(pathogenic_data, non_pathogenic_data)
+    
+    # Store the results
+    comparison_results[biomarker] = {'p-value': p_value, 'Pathogenic': pathogenic_averages, 'Non_Pathogenic': non_pathogenic_averages}
+
+# Convert the results into a DataFrame for easy viewing
+comparison_results_df = pd.DataFrame(comparison_results).T
+print(comparison_results_df)
+
 
 # Create an empty dictionary to store p-values
 comparison_results = {}
@@ -190,14 +244,10 @@ for biomarker in biomarker_columns:
     non_pathogenic_data = non_pathogenic_df[biomarker].dropna()
     
     pathogenic_averages = pathogenic_df[biomarker].mean()
-    non_pathogenic_averages = non_pathogenic_df[biomarker].mean()
+    non_pathogenic_averages = non_pathogenic_df[biomarker].median()
     
-    # Perform t-test if the biomarker is normally distributed
-    if biomarker in normal_biomarkers:
-        stat, p_value = stats.ttest_ind(pathogenic_data, non_pathogenic_data)
-    else:
-        # Perform Mann-Whitney U test if the biomarker is not normally distributed
-        stat, p_value = stats.mannwhitneyu(pathogenic_data, non_pathogenic_data)
+    # Perform Mann-Whitney U test if the biomarker is not normally distributed
+    stat, p_value = stats.mannwhitneyu(pathogenic_data, non_pathogenic_data)
     
     # Store the results
     comparison_results[biomarker] = {'p-value': p_value, 'Pathogenic': pathogenic_averages, 'Non_Pathogenic': non_pathogenic_averages}
@@ -205,26 +255,6 @@ for biomarker in biomarker_columns:
 # Convert the results into a DataFrame for easy viewing
 comparison_results_df = pd.DataFrame(comparison_results).T
 print(comparison_results_df)
-
-
-
-comparison_results = {}
-# Loop through each biomarker to perform the appropriate test
-for biomarker in biomarker_columns:
-    # Extract data for pathogenic and non-pathogenic
-    pathogenic_data = pathogenic_df[biomarker].dropna()
-    non_pathogenic_data = non_pathogenic_df[biomarker].dropna()
-    
-    pathogenic_averages = pathogenic_df[biomarker].mean()
-    non_pathogenic_averages = non_pathogenic_df[biomarker].mean()
-    
-    # Store the results
-    comparison_results[biomarker] = {'P/LP': pathogenic_averages, 'Non_Pathogenic': non_pathogenic_averages}
-
-# Convert the results into a DataFrame for easy viewing
-comparison_results_df = pd.DataFrame(comparison_results).T
-print(comparison_results_df)
-
 
 
 
@@ -257,61 +287,6 @@ non_pathogenic_stats = non_pathogenic_df['Age at recruitment'].describe()
 
 print("Pathogenic Group Age Distribution:\n", pathogenic_stats)
 print("\nNon-Pathogenic Group Age Distribution:\n", non_pathogenic_stats)
-
-
-# t-test for Age at recruitment
-age_ttest = stats.ttest_ind(pathogenic_df['Age at recruitment'], non_pathogenic_df['Age at recruitment'])
-print(f"T-test for Age at Recruitment: {age_ttest}")
-
-
-
-
-
-
-pathogenic_df_clean = pathogenic_df.dropna(subset=['C-reactive protein', 'Rheumatoid factor'])
-non_pathogenic_df_clean = non_pathogenic_df.dropna(subset=['C-reactive protein', 'Rheumatoid factor'])
-
-t_stat, p_value = stats.ttest_ind(pathogenic_df_clean['Rheumatoid factor'], non_pathogenic_df_clean['Rheumatoid factor'])
-print(f"T-test for Rheumatoid factor: t-statistic = {t_stat}, p-value = {p_value}")
-
-t_stat, p_value = stats.ttest_ind(pathogenic_df_clean['C-reactive protein'], non_pathogenic_df_clean['C-reactive protein'])
-print(f"T-test for C-reactive protein: t-statistic = {t_stat}, p-value = {p_value}")
-
-
-# Filter for C-reactive protein column
-pathogenic_crp = pathogenic_df_clean['C-reactive protein']
-non_pathogenic_crp = non_pathogenic_df_clean['C-reactive protein']
-
-# Perform T-test
-t_stat, p_value = stats.ttest_ind(pathogenic_crp, non_pathogenic_crp)
-
-# Create a DataFrame to store the data for plotting
-plot_data = pd.DataFrame({
-    'Variant Type': ['Pathogenic'] * len(pathogenic_crp) + ['Non-Pathogenic'] * len(non_pathogenic_crp),
-    'C-reactive protein': list(pathogenic_crp) + list(non_pathogenic_crp)
-})
-
-# Set the color palette for the violin plot
-sns.set(style="whitegrid")
-palette = ["#FF6F61", "#4C72B0"]  # Custom color palette (red for pathogenic, blue for non-pathogenic)
-
-# Create the violin plot
-plt.figure(figsize=(8, 6))
-ax = sns.violinplot(x='Variant Type', y='C-reactive protein', data=plot_data, palette=palette, inner="point", linewidth=1.5)
-
-# Enhance the plot with better formatting
-ax.set_title('C-reactive Protein Levels: Pathogenic vs Non-Pathogenic Variants', fontsize=16, weight='bold')
-ax.set_xlabel('Variant Type', fontsize=12)
-ax.set_ylabel('C-reactive Protein (mg/L)', fontsize=12)
-ax.tick_params(axis='both', which='major', labelsize=12)
-
-# Add p-value to the plot with improved positioning and style
-plt.text(0.5, max(plot_data['C-reactive protein']) * 0.95, f'P-value = {p_value:.4e}', 
-         ha='center', va='center', fontsize=14, color='darkred', weight='bold')
-
-# Show the plot with tight layout
-plt.tight_layout()
-plt.show()
 
 
 
@@ -419,6 +394,6 @@ def compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df, col
     print("-" * 50)
 
 # Run the test for both allele frequency columns
-compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df, 'gnomADg_AF')
-compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df, 'gnomADe_AF')
+compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df_single_variant, 'gnomADg_AF')
+compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df_single_variant, 'gnomADe_AF')
 

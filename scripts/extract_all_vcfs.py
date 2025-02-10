@@ -20,7 +20,7 @@ for source_dir in source_dirs:
             if file.startswith("batch_") and file.endswith(".tar"):
                 # Extract the batch number from the filename
                 batch_number = int(file.split('_')[1].split('.')[0])
-                if 10 <= batch_number <= 20:  # Only process batch_10 to batch_20
+                if 21 <= batch_number <= 30:  
                     tar_path = os.path.join(root, file)
                     
                     # Decompress the tar file into a specific batch directory
