@@ -23,8 +23,9 @@ GENE_LIST = {
 df1 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/10_UKB_mosaic_variants.tsv', sep='\t')
 df2 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/11-24_UKB_mosiac_variants.tsv', sep='\t')
 df3 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/15-28_UKB_mosiac_variants.tsv', sep='\t')
+df4 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/29-32_UKB_mosiac_variants.tsv', sep='\t')
 # Concatenate the dataframes
-merged_df = pd.concat([df1, df2, df3], ignore_index=True)
+merged_df = pd.concat([df1, df2, df3, df4], ignore_index=True)
 
 # Ensure that 'POS' is a float
 merged_df['POS'] = pd.to_numeric(merged_df['POS'], errors='coerce')
@@ -127,7 +128,13 @@ def extract_annotations(info):
         'SYMBOL': r'SYMBOL=([^|;]+)',
         'gnomADg_AF': r'gnomADg_AF=([^|;]+)',
         'gnomADe_AF': r'gnomADe_AF=([^|;]+)',
-        'CLIN_SIG': r'CLIN_SIG=([^|;]+)'
+        'CLIN_SIG': r'CLIN_SIG=([^|;]+)',
+        'HGVSc': r'HGVSc=([^|;]+)',
+        'HGVSp': r'HGVSp=([^|;]+)',
+        'VARIANT_CLASS': r'VARIANT_CLASS=([^|;]+)',
+        'HGNC_ID': r'HGNC_ID=([^|;]+)',
+        'SOMATIC': r'SOMATIC=([^|;]+)',
+        'PHENO': r'PHENO=([^|;]+)'
     }
     
     # Extract each field using regex

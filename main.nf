@@ -6,13 +6,13 @@ include { filter_regions_and_quality } from './modules/filter_regions_and_qualit
 include { format_vep_and_vcf_to_csv } from './modules/format_vcf_to_csv'
 workflow process_vcf {
     take:
-    vcf_file
+    vcf_files
     main:
     // Filter VCF by regions defined in BED file and by quality
-    quality_filtered_ch = filter_regions_and_quality(vcf_file, file(params.bed_file))
+    quality_filtered_ch = filter_regions_and_quality(vcf_files, file(params.bed_file))
     // Annotate VEP
     vep_ch = annotate_vep(quality_filtered_ch)
-    // Reformat VEP Anno
+    // Reformat VEP Annotations and turn it into a csv
     new_vep_ch = format_csq_vep(vep_ch, file(params.transform_vep_anno_script))
     merge_vcf_ch = format_vep_and_vcf_to_csv(new_vep_ch)
     // Integrate Phenotype data
@@ -44,10 +44,11 @@ workflow {
     vcf_ch = csv.map { row ->
         [ row.sample_id, file(row.sample_vcf, checkIfExists: true) ]
     }
-    // Process all the VCFs individually in parallel
-    tsvs_ch = process_vcf(vcf_ch)
+    batched_vcf_ch = vcf_ch.collate(9).map{ it -> it.transpose() }
+    // Process all the VCFs in batches
+    tsvs_ch = process_vcf(batched_vcf_ch)
     // Combine the output CSV files
-    collected_tsvs = tsvs_ch.collect()
+    collected_tsvs = tsvs_ch.flatten().collect()
     // Extract batch number from the CSV file name (e.g., '10_samplesheet.csv' -> '10')
     file_name = params.vcf_csv.startsWith("/") ? params.vcf_csv.tokenize('/').last() : params.vcf_csv
     batch_number = file_name.split('_')[0]  // This assumes the batch number is the first part of the file name

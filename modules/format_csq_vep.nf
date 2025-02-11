@@ -3,17 +3,24 @@ process format_csq_vep {
     //publishDir params.results_dir, mode: 'copy'
     
     input:
-    tuple val(id), path(input_vep)
+    path(input_veps)
     path python_script
 
     output:
-    tuple val(id), path("*.formatted_vep.vcf")
+    path("*.formatted_vep.vcf")
 
     script:
     """
-    formatted_output_file="${id}.formatted_vep.vcf"
-    # Run the Python script to reformat the CSQ field
-    python3 ${python_script} --input "${input_vep}" \\
-                            --output "\${formatted_output_file}"
+    # Loop over each VCF in the batch
+    for vcf in ${input_veps}
+    do
+        # Define the output file name based on the sample name
+        id=\$(basename \${vcf} | cut -d. -f1)
+        formatted_output_file="\${id}.formatted_vep.vcf"
+
+        # Run the Python script to reformat the CSQ field
+        python3 ${python_script} --input "\${vcf}" \\
+                                --output "\${formatted_output_file}"
+    done
     """
 }
