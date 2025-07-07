@@ -6,7 +6,7 @@ process annotate_vep {
 
     output:
     path("*.annotated_vep.vcf")
-    
+
     script:
     """
     # Loop over each VCF in the batch
@@ -21,13 +21,14 @@ process annotate_vep {
             --cache \\
             --offline \\
             --dir_cache "${params.vep_cache}" \\
+            --fasta "${params.vep_fasta}" \\
             --assembly GRCh38 \\
             --input_file "\${vcf}" \\
             --output_file "\${output_file}" \\
             --vcf \\
             --force_overwrite \\
             --pick \\
-            --everything 
+            --everything
     done
     """
 }
