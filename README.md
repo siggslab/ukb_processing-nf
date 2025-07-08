@@ -35,11 +35,16 @@ The main workflow consists of two stages:
 Before running this workflow, ensure you have:
 - Access to **UK Biobank raw VCFs** stored on your HPC filesystem.
 - Access to a high-performance computing (HPC) cluster (this workflow was developed and tested on **Gadi**).
-- Installed:
-  - `Nextflow` (recommended version ≥ 21.10.0)
-  - `Python 3.8+`
-  - `bcftools`, `tar`, and other basic Linux utilities.
-  - All required Python packages (see `requirements.txt` if available).
+
+## Tools and Dependencies
+The workflow uses:
+- **Nextflow** for scalable, reproducible workflows.
+- **Singularity** for dependencies in HPC environment.
+- **Python 3** for sample sheet creation, filtering, and analysis.
+- **bcftools** for VCF processing.
+- **VEP** for VCF annotations.
+- **qsub** (PBS job submission) for HPC execution.
+- Standard GNU/Linux utilities.
 
 ---
 
@@ -52,9 +57,9 @@ Use the extraction script to decompress and organize VCFs into batches.
 
 **Usage:**
 ```bash
-bash bin/run_extract_vcf.sh <source_directory> <start_index> <end_index>
+bash bin/run_extract_vcf.sh 
 ```
-
+- These are not arguments but code inside the script you have to manually change
 - **source_directory:** Path containing the tar archives.
 - **start_index**, **end_index:** Define the batch range to extract (e.g., 1–20).
 
@@ -70,14 +75,14 @@ Each batch will have:
 
 After extraction, use the Python script to create Nextflow-compatible sample sheets for each batch.
 
-**Example:**
+**Example: Create samplesheets for batches 1 to 20**
 ```bash
 for i in {1..20}; do
   python3 scripts/create_samplesheet.py ukb_vcfs/$i samplesheets/${i}_samplesheet.csv
 done
 ```
 
-- Each sample sheet includes up to 9,999 VCFs.
+- Each batch includes up to 9,999 VCFs.
 - If a batch contains more than 5,000 VCFs, the sample sheet is automatically split into parts (`part1`, `part2`).
 
 ---
@@ -86,9 +91,9 @@ done
 
 Use the provided HPC submission script (`bin/run_nf_gadi.sh`) to launch the Nextflow pipeline on each batch sample sheet.
 
-**Example:**
+**Example: Running the UKB processing and anotation on <Batch_ID>**
 ```bash
-for samplesheet in samplesheets/11_samplesheet_part*.csv; do
+for samplesheet in samplesheets/<Batch_ID>_samplesheet_part*.csv; do
   ID=$(basename "$samplesheet" | sed -E 's/([0-9]+)_samplesheet_(part[0-9]+)\.csv/\1_\2/')
   qsub -v ID="$ID",samplesheet="$(realpath "$samplesheet")" bin/run_nf_gadi.sh
 done
@@ -108,7 +113,7 @@ After processing all batches, combine the resulting TSV outputs from all parts i
 
 Then run:
 ```bash
-python3 scripts/post_annotation_filtering.py <combined_tsv> <output_directory>
+python3 scripts/post_annotation_filtering.py 
 ```
 
 This script:
@@ -122,7 +127,7 @@ This script:
 
 To reproduce the analyses and figures in the paper, use:
 ```bash
-python3 scripts/data_analysis.py <filtered_data> <output_directory>
+python3 scripts/data_analysis.py 
 ```
 
 This script:
@@ -132,16 +137,6 @@ This script:
 
 ---
 
-## Tools and Dependencies
-
-The workflow uses:
-- **Nextflow** for scalable, reproducible workflows.
-- **Python 3** for sample sheet creation, filtering, and analysis.
-- **bcftools** for VCF processing.
-- **qsub** (PBS job submission) for HPC execution.
-- Standard GNU/Linux utilities.
-
----
 
 ## Additional Notes
 
