@@ -11,7 +11,7 @@ from matplotlib.lines import Line2D
 
 
 # Get the IUIS list and get only AD or XL variants based off Inheritance 
-iuis_iei = pd.read_excel("path/to/IUIS_OMIM_220628.xlsx")
+iuis_iei = pd.read_excel("assets/IUIS_OMIM_220628.xlsx")
 AD_iuis = iuis_iei[iuis_iei['Inheritance.iuis'].str.contains('AD|XL', na=False)]
 iuis_iei = AD_iuis
 iuis_iei['OMIM'] = iuis_iei["OMIM_Phenotype"].fillna(iuis_iei["OMIM_gene"])
@@ -24,12 +24,12 @@ iuis_iei = iuis_iei.reset_index(drop=True)
 
 
 # Load the data
-df1 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/10-20_UKB_mosaic_variants.tsv', sep='\t')
-df2 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/21-30_UKB_mosaic_variants.tsv', sep='\t')
-df3 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/31-40_UKB_mosaic_variants.tsv', sep='\t')
-df4 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/41-50_UKB_mosaic_variants.tsv', sep='\t')
-df5 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/51-60_UKB_mosaic_variants.tsv', sep='\t')
-df6 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/extra_UKB_mosaic_variants.tsv', sep='\t')
+df1 = pd.read_csv('g/data/tn36/ukb_processing/workflow/10-20_UKB_mosaic_variants.tsv', sep='\t')
+df2 = pd.read_csv('g/data/tn36/ukb_processing/workflow/21-30_UKB_mosaic_variants.tsv', sep='\t')
+df3 = pd.read_csv('g/data/tn36/ukb_processing/workflow/31-40_UKB_mosaic_variants.tsv', sep='\t')
+df4 = pd.read_csv('g/data/tn36/ukb_processing/workflow/41-50_UKB_mosaic_variants.tsv', sep='\t')
+df5 = pd.read_csv('g/data/tn36/ukb_processing/workflow/51-60_UKB_mosaic_variants.tsv', sep='\t')
+df6 = pd.read_csv('g/data/tn36/ukb_processing/workflow/extra_UKB_mosaic_variants.tsv', sep='\t')
 
 
 # Ensure that 'POS' is a float
@@ -43,7 +43,7 @@ df6['POS'] = pd.to_numeric(df6['POS'], errors='coerce')
 
 
 # Get the filtered Clinvar file
-clinvar = pd.read_csv("path/to/clinvar_2022.tsv", sep="\t")
+clinvar = pd.read_csv("assets/clinvar_2022.tsv", sep="\t")
 
 
 # Function to extract unique OMIM IDs
@@ -63,7 +63,7 @@ check_dup_clinvar['OMIMS'] = check_dup_clinvar['OMIMS'].apply(lambda x: tuple(x)
 check_dup_clinvar = check_dup_clinvar.drop_duplicates()
 
 # Get the UBA1 whitelist variants
-vexas_uba1_bed = pd.read_csv('path/to/vexas_variants.bed', sep='\t', header=None, names=['CHROM', 'START', 'END'])
+vexas_uba1_bed = pd.read_csv('assets/vexas_variants.bed', sep='\t', header=None, names=['CHROM', 'START', 'END'])
 # Extract UBA1 regions from the BED file (chrX with specified coordinates)
 uba1_regions = vexas_uba1_bed[vexas_uba1_bed ['CHROM'] == 'chrX'][['START', 'END']].values.tolist()
 
@@ -457,15 +457,9 @@ non_pathogenic_df = non_pathogenic_df[pathogenic_df.columns]
 # Step 3: Remove these rows from pathogenic_df
 pathogenic_df = pathogenic_df[~((pathogenic_df['CHROM'] == 'chrX') & (pathogenic_df['Sex'].str.lower() == 'female'))]
 
-
+# Final cleaned post-annotated filtered data that will be used for downstream analysis
 pathogenic_df.to_csv('final_pathogenic_df.csv', index=False)
 non_pathogenic_df.to_csv('non_pathogenic_df.csv', index=False)
 
-
-# =============================================================================
-# ANALYSIS OF THE DATA
-# =============================================================================
-pathogenic_df = pd.read_csv("final_pathogenic_df.csv")
-non_pathogenic_df = pd.read_csv("non_pathogenic_df.csv")
 
 
