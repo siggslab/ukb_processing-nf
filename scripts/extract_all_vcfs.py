@@ -4,12 +4,12 @@ from pathlib import Path
 
 # Source directories where the tar files are stored
 source_dirs = [
-    "/g/data/tn36/ukb/pass_1/interim_200k/",
-    "/g/data/tn36/ukb/pass_1/remaining_samples/",
+    "/path/to/ukb/stored/batch_01_to_batch_20",
+    "/path/to/ukb/stored/batch_21_to_batch_50",
 ]
 
 # Destination directory where all VCF files will be organized
-destination_dir = "/g/data/tn36/ukb_processing/ukb_vcfs/"
+destination_dir = "/path/to/ukb_vcfs/"
 Path(destination_dir).mkdir(parents=True, exist_ok=True)
 
 # Process each source directory
@@ -20,7 +20,7 @@ for source_dir in source_dirs:
             if file.startswith("batch_") and file.endswith(".tar"):
                 # Extract the batch number from the filename
                 batch_number = int(file.split('_')[1].split('.')[0])
-                if 21 <= batch_number <= 30:  
+                if 10 <= batch_number <= 20:  
                     tar_path = os.path.join(root, file)
                     
                     # Decompress the tar file into a specific batch directory
