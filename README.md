@@ -25,8 +25,7 @@ The main workflow consists of two stages:
 - [`bin/`](./bin) — Shell scripts for data extraction and running Nextflow.
 - [`scripts/`](./scripts) — Python scripts for sample sheet generation, post-annotation filtering, and data analysis.
 - [`main.nf`](./main.nf) — Nextflow pipeline for VCF processing and annotation.
-- [`results/`](./results) — Output directory for annotated VCFs and final result files.
-- [`samplesheets/`](./samplesheets) — Generated sample sheets for batch processing.
+- [`assets/`](./assets) — This directory contains reference files and key outputs from the entire pipeline, including the IUIS and ClinVar lists, BED files for region-based filtering, and the UBA1 whitelist.
 
 ---
 
