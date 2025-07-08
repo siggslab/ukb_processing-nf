@@ -15,9 +15,6 @@ from matplotlib.lines import Line2D
 pathogenic_df = pd.read_csv("final_pathogenic_df.csv")
 non_pathogenic_df = pd.read_csv("non_pathogenic_df.csv")
 
-pathogenic_df = pd.read_csv("C:/Users/Ricky/Garvan/ukb_processing-nf/final_pathogenic_df.csv")
-non_pathogenic_df = pd.read_csv("C:/Users/Ricky/Garvan/ukb_processing-nf/non_pathogenic_df.csv")
-
 
 ethnic_map = {
     'British': 'White',
