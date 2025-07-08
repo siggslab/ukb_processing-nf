@@ -1,42 +1,72 @@
 import pandas as pd
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 import re
+from scipy.stats import zscore
+import matplotlib.lines as mlines
+from adjustText import adjust_text  # Optional for reducing label overlap
+from matplotlib.lines import Line2D
 
 
-GENE_LIST = {
-    "STING1", "LSM11", "RNU7-1", "CDC42", "STAT2", 
-    "ATAD3A", "C2orf69", "RIPK1", "NCKAP1L", 
-    "HCK1", "PSMB9", "IKBKG", "TBK1", "UBA1", "ADA2",
-    "TREX1", "SAMHD1", "IFIH1", "DNASE2", "LSM11", "ACP5",
-    "POLA1", "USP18", "OAS1", "MEFV", "MVK", "NLRP3",
-    "NLRP12", "NLRC4", "PLCG2", "NLRP1", "TNFRSF1A",
-    "PSTPIP1", "NOD2", "ADAM17", "LPIN2", "IL1RN",
-    "IL36RN","SLC29A3", "CARD14", "SH3BP2", "PSMB8",
-    "PSMG2", "COPA", "OTULIN", "TNFAIP3", "AP1S3",
-    "ALPI", "TRIM22", "HAVCR2", "SYK", "HCK"
-}
+# Get the IUIS list and get only AD or XL variants based off Inheritance 
+iuis_iei = pd.read_excel("path/to/IUIS_OMIM_220628.xlsx")
+AD_iuis = iuis_iei[iuis_iei['Inheritance.iuis'].str.contains('AD|XL', na=False)]
+iuis_iei = AD_iuis
+iuis_iei['OMIM'] = iuis_iei["OMIM_Phenotype"].fillna(iuis_iei["OMIM_gene"])
+# Convert 'OMIM' column to numeric, forcing errors to NaN
+iuis_iei['OMIM'] = pd.to_numeric(iuis_iei['OMIM'], errors='coerce')
+# Drop rows where 'OMIM' is NaN or empty
+iuis_iei = iuis_iei.dropna(subset=['OMIM'])
+# Reset index after dropping rows
+iuis_iei = iuis_iei.reset_index(drop=True)
 
 
-# Load your data into a pandas DataFrame
-df1 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/10_UKB_mosaic_variants.tsv', sep='\t')
-df2 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/11-24_UKB_mosiac_variants.tsv', sep='\t')
-df3 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/15-28_UKB_mosiac_variants.tsv', sep='\t')
-df4 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/29-32_UKB_mosiac_variants.tsv', sep='\t')
-# Concatenate the dataframes
-merged_df = pd.concat([df1, df2, df3, df4], ignore_index=True)
+# Load the data
+df1 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/10-20_UKB_mosaic_variants.tsv', sep='\t')
+df2 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/21-30_UKB_mosaic_variants.tsv', sep='\t')
+df3 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/31-40_UKB_mosaic_variants.tsv', sep='\t')
+df4 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/41-50_UKB_mosaic_variants.tsv', sep='\t')
+df5 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/51-60_UKB_mosaic_variants.tsv', sep='\t')
+df6 = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/extra_UKB_mosaic_variants.tsv', sep='\t')
+
 
 # Ensure that 'POS' is a float
-merged_df['POS'] = pd.to_numeric(merged_df['POS'], errors='coerce')
+df1['POS'] = pd.to_numeric(df1['POS'], errors='coerce')
+df2['POS'] = pd.to_numeric(df2['POS'], errors='coerce')
+df3['POS'] = pd.to_numeric(df3['POS'], errors='coerce')
+df4['POS'] = pd.to_numeric(df4['POS'], errors='coerce')
+df5['POS'] = pd.to_numeric(df5['POS'], errors='coerce')
+df6['POS'] = pd.to_numeric(df6['POS'], errors='coerce')
 
-iuis_iei = pd.read_excel('C:/Users/Ricky/Garvan/ukb_processing-nf/assets/IUIS IEI list for web site March 2022.xlsx')
-
-vexas_uba1_bed = pd.read_csv('C:/Users/Ricky/Garvan/ukb_processing-nf/assets/vexas_variants.bed', sep='\t', header=None, names=['CHROM', 'START', 'END'])
 
 
+# Get the filtered Clinvar file
+clinvar = pd.read_csv("path/to/clinvar_2022.tsv", sep="\t")
+
+
+# Function to extract unique OMIM IDs
+def extract_unique_omims(info_str):
+    # Use regex to find all OMIM IDs (numeric values after OMIM:)
+    omims = re.findall(r'OMIM:(\d+)', info_str)
+    # Return unique OMIM IDs
+    return list(set(omims))
+
+
+# Extract the OMIM codes from the clinvar dataframe
+clinvar['OMIMS'] = clinvar['INFO'].apply(extract_unique_omims)
+clinvar = clinvar.drop(['ID', 'QUAL', 'FILTER'], axis=1)
+clinvar['CHROM'] = 'chr' + clinvar['CHROM'].astype(str)
+check_dup_clinvar = clinvar
+check_dup_clinvar['OMIMS'] = check_dup_clinvar['OMIMS'].apply(lambda x: tuple(x) if isinstance(x, list) else x)
+check_dup_clinvar = check_dup_clinvar.drop_duplicates()
+
+# Get the UBA1 whitelist variants
+vexas_uba1_bed = pd.read_csv('path/to/vexas_variants.bed', sep='\t', header=None, names=['CHROM', 'START', 'END'])
 # Extract UBA1 regions from the BED file (chrX with specified coordinates)
 uba1_regions = vexas_uba1_bed[vexas_uba1_bed ['CHROM'] == 'chrX'][['START', 'END']].values.tolist()
+
 
 def replace_info_with_annotations(df):
     """
@@ -65,18 +95,18 @@ def replace_info_with_annotations(df):
 
     return df
 
-def filter_annotations(df, iuis_iei, uba1_regions):
+def filter_annotations(updated_df, iuis_iei, uba1_regions):
     """
     Filters the DataFrame based on criteria:
     - gnomADe_AF < 0.001 or gnomADg_AF < 0.001
     - IMPACT in ['MODERATE', 'HIGH']
     - CLIN_SIG in ['pathogenic', 'likely_pathogenic']
     - Includes rows where SYMBOL is 'UBA1', regardless of other criteria
-    - Only include genes that are associated with Autosomal Dominant (AD) inheritance
+    - Inheritance should already be filtered as AD|XL prior to calling this function
 
     Parameters:
-        df (pd.DataFrame): Input DataFrame with extracted annotations.
-        iuis_iei (pd.DataFrame): DataFrame containing inheritance data.
+        updated_df (pd.DataFrame): Input DataFrame with extracted annotations.
+        iuis_iei (pd.DataFrame): DataFrame containing inheritance data already filtered to AD|XL.
 
     Returns:
         pd.DataFrame: Filtered DataFrame.
@@ -88,7 +118,7 @@ def filter_annotations(df, iuis_iei, uba1_regions):
         (df['gnomADe_AF'].isna() & df['gnomADg_AF'].notna() & (df['gnomADg_AF'] < 0.001))
     )
     impact_filter = df['IMPACT'].isin(['MODERATE', 'HIGH'])
-    clin_sig_filter = df['CLIN_SIG'].isin(['pathogenic', 'likely_pathogenic'])
+    clin_sig_filter = df['CLIN_SIG'].str.contains(r'\b(pathogenic|likely_pathogenic)\b', case=False, na=False)
     
     # Include rows where SYMBOL is 'UBA1', regardless of other criteria
     uba1_filter = (
@@ -96,21 +126,17 @@ def filter_annotations(df, iuis_iei, uba1_regions):
         df['CHROM'].str.contains('chrX') & 
         df['POS'].apply(lambda x: any(start <= x <= end for start, end in uba1_regions))
     )
+   
+    # Now directly use the 'iuis_iei' DataFrame to filter based on AD|XL genes
+    ad_genes = iuis_iei['Gene']  # Already filtered to AD|XL
 
-    #uba1_filter = df['SYMBOL'] == 'UBA1'
-    # Gene list filter: genes in GENE_LIST must pass the filter, except UBA1
-    gene_list_filter = df['SYMBOL'].isin(GENE_LIST)
-    
-    # Extract genes associated with Autosomal Dominant (AD) inheritance from iuis_iei DataFrame
-    ad_genes = iuis_iei[iuis_iei['Inheritance'].str.contains('AD', case=False, na=False)]['Genetic defect']
-    
-    # Filter the DataFrame to only include genes with AD inheritance
+    # Filter the DataFrame to only include genes with AD inheritance (since it's already filtered)
     ad_inheritance_filter = df['SYMBOL'].isin(ad_genes)
 
     # Combine all conditions: gnomad, impact, clin_sig, AD inheritance, and gene list (UBA1 exception)
-    conditions = gnomad_filter & impact_filter & clin_sig_filter & gene_list_filter & ad_inheritance_filter
-    #conditions = gnomad_filter & impact_filter & clin_sig_filter & gene_list_filter
+    conditions = gnomad_filter & impact_filter & clin_sig_filter & ad_inheritance_filter
     combined_filter = conditions | uba1_filter  
+    
     # In case no rows pass the uba1_filter, still retain the rows that pass the conditions filter
     if uba1_filter.sum() == 0:  # If no UBA1 rows pass the filter
         filtered_df = df[conditions]  # Keep rows that pass the other conditions
@@ -131,10 +157,7 @@ def extract_annotations(info):
         'CLIN_SIG': r'CLIN_SIG=([^|;]+)',
         'HGVSc': r'HGVSc=([^|;]+)',
         'HGVSp': r'HGVSp=([^|;]+)',
-        'VARIANT_CLASS': r'VARIANT_CLASS=([^|;]+)',
-        'HGNC_ID': r'HGNC_ID=([^|;]+)',
-        'SOMATIC': r'SOMATIC=([^|;]+)',
-        'PHENO': r'PHENO=([^|;]+)'
+        'VARIANT_CLASS': r'VARIANT_CLASS=([^|;]+)'
     }
     
     # Extract each field using regex
@@ -156,251 +179,293 @@ def extract_annotations(info):
     
     return annotations
 
-updated_df = replace_info_with_annotations(merged_df)
-pathogenic_df = filter_annotations(updated_df, iuis_iei, uba1_regions)
+updated_df1 = replace_info_with_annotations(df1)
+updated_df2 = replace_info_with_annotations(df2)
+updated_df3 = replace_info_with_annotations(df3)
+updated_df4 = replace_info_with_annotations(df4)
+updated_df5 = replace_info_with_annotations(df5)
+updated_df6 = replace_info_with_annotations(df6)
+
+
+pathogenic_df1 = filter_annotations(updated_df1, iuis_iei, uba1_regions)
+pathogenic_df2 = filter_annotations(updated_df2, iuis_iei, uba1_regions)
+pathogenic_df3 = filter_annotations(updated_df3, iuis_iei, uba1_regions)
+pathogenic_df4 = filter_annotations(updated_df4, iuis_iei, uba1_regions)
+pathogenic_df5 = filter_annotations(updated_df5, iuis_iei, uba1_regions)
+pathogenic_df6 = filter_annotations(updated_df6, iuis_iei, uba1_regions)
+
+
+full_pathogenic_df = pd.concat([pathogenic_df1, 
+                           pathogenic_df2, 
+                           pathogenic_df3, 
+                           pathogenic_df4, 
+                           pathogenic_df5, 
+                           pathogenic_df6], ignore_index=True)
+
+
+full_pathogenic_df.to_csv('full_pathogenic_df.csv', index=False)
+
+
+
+iuis_info =  iuis_iei[["Gene", "Disease", "OMIM", "Associated_features"]]
+
+
+# Merge using an outer join to capture all possible matches
+merged_df = full_pathogenic_df.merge(clinvar, 
+                        left_on=['CHROM', 'POS', 'REF', 'ALT'], 
+                        right_on=['CHROM', 'POS', 'REF', 'ALT'], 
+                        how='inner')  # Regular merge
+
+
+pathogenic_df_explode = merged_df.explode('OMIMS')
+pathogenic_df_explode['OMIMS'] = pd.to_numeric(pathogenic_df_explode['OMIMS'])
+
+
+merged_df = pathogenic_df_explode.merge(iuis_info , left_on=['SYMBOL','OMIMS'], right_on=['Gene','OMIM'], how='inner')
+
+
+# Drop 'Genetic defect' column since SYMBOL already exists
+merged_df = merged_df.drop(columns=["Gene"])
+merged_df = merged_df.drop(columns=["OMIMS"])
+# Move 'Disease ' and 'Associated features' to the 12th and 13th columns
+cols = list(merged_df.columns)
+cols.insert(12, cols.pop(cols.index("Disease")))
+cols.insert(13, cols.pop(cols.index("OMIM")))
+cols.insert(14, cols.pop(cols.index("Associated_features")))
+cols.insert(15, cols.pop(cols.index("INFO")))
+merged_df = merged_df[cols]
+pathogenic_df = merged_df
+
+
+# First, group by the relevant columns
+grouped = pathogenic_df.groupby(['Participant ID', 'CHROM', 'POS', 'REF', 'ALT'])
+# For each group, concatenate the specified columns
+def concat_unique_values(group):
+    # Keep the ALT, CHROM, POS, REF columns unchanged
+    group = group.copy()
+    # Concatenate values for the other specified columns
+    for column in ['Disease', 'OMIM', 'Associated_features']:
+        # If the column is OMIM, convert to string before joining
+        if column == 'OMIM':
+            group[column] = '| '.join(group[column].dropna().astype(int).astype(str).unique())  # Convert OMIM to int and then to str
+        else:
+            group[column] = '| '.join(group[column].dropna().unique())  # Drop NaN and join unique values for others
+    return group.iloc[0]  # Return the first row in the group after concatenating
+# Apply the function to concatenate values in each group
+concatenated_df = grouped.apply(concat_unique_values).reset_index(drop=True)
+pathogenic_df = concatenated_df
+dups = concatenated_df[concatenated_df.duplicated(subset=['Participant ID', 'CHROM', 'POS', 'REF', 'ALT'], keep=False)]
+
+
+# Function to check if an indel is larger than 2bp
+def is_large_indel(row):
+    return max(len(row["REF"]), len(row["ALT"])) > 2
+
+# Filter out large indels
+filtered_pathogenic_df = pathogenic_df[~pathogenic_df.apply(is_large_indel, axis=1)]
+
+# Manually Whitelist this AIRE variant
+AD_AIRE_mask = (
+    (filtered_pathogenic_df["SYMBOL"] != "AIRE") |  # Keep non-AIRE rows
+    (
+        (filtered_pathogenic_df["CHROM"] == "chr12") & 
+        (filtered_pathogenic_df["POS"] == 44289686) & 
+        (filtered_pathogenic_df["REF"] == "G") & 
+        (filtered_pathogenic_df["ALT"] == "T")
+    )
+)
+
+# Apply the filter
+filtered_df = filtered_pathogenic_df[AD_AIRE_mask]
+
+# Manually exlucde all ACD variants
+filtered_pathogenic_df = filtered_df[filtered_df["SYMBOL"] != "ACD"]
+pathogenic_df = filtered_pathogenic_df
+
+# Extract the Clinrevstat column to filter for high confidence ClinVar Annotations
+pathogenic_df['CLNREVSTAT'] = pathogenic_df["INFO"].str.extract(r'CLNREVSTAT=([^;]+)')
+filtered_pathogenic_df = pathogenic_df[~pathogenic_df["CLNREVSTAT"].str.startswith("no", na=False)]
+pathogenic_df = filtered_pathogenic_df
+
+
+# Remove the column and reinsert at position 15 (16th column)
+col = pathogenic_df.pop("CLNREVSTAT")
+pathogenic_df.insert(16, "CLNREVSTAT", col)
+# Split FORMAT_INFO by ":" and extract the AF value (3rd field, index 2)
+pathogenic_df["VAF"] = pathogenic_df["FORMAT_INFO"].str.split(":").str[2]
+# Insert as column 17 (index 16 because Python is 0-based)
+vaf_col = pathogenic_df.pop("VAF")
+pathogenic_df.insert(17, "VAF", vaf_col)
+# Ensure the VAF column is numeric
+pathogenic_df['VAF'] = pd.to_numeric(pathogenic_df['VAF'], errors='coerce')  # Coerce any errors to NaN
+pathogenic_df.iloc[:, 10] = pathogenic_df['INFO'].str.extract(r'CLNSIG=([^;]+)')
+
+
+# Define whitelist of genes to always keep
+whitelist_genes = ['UBA1']
+
+pathogenic_mask = pathogenic_df['CLIN_SIG'].str.contains(r'\b(pathogenic|likely_pathogenic)\b', case=False, na=False)
+clnrevstat_mask = ~pathogenic_df["CLNREVSTAT"].isin([
+    "criteria_provided,_single_submitter",
+    "criteria_provided,_conflicting_classifications"
+])
+
+whitelist_mask = pathogenic_df['SYMBOL'].isin(whitelist_genes)
+
+# Apply filters
+allowed_pathogenic = pathogenic_mask & clnrevstat_mask
+combined_mask = allowed_pathogenic | whitelist_mask
+
+# Final filtered DataFrame
+pathogenic_df_filtered = pathogenic_df[combined_mask]
+
+col = pathogenic_df_filtered.pop("HGVSp")
+pathogenic_df_filtered.insert(12, "HGVSp", col)
+
+pathogenic_df = pathogenic_df_filtered
 
 pathogenic_df.to_csv('pathogenic_df.csv', index=False)
- 
-# Remove rows in `filtered_df` from `updated_df`
-non_pathogenic_df = pd.concat([updated_df, pathogenic_df, pathogenic_df]).drop_duplicates(keep=False)
 
-# Group by 'Participant ID' and randomly select one row from each group
-non_pathogenic_df_single_variant = non_pathogenic_df.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
 
-# Define the biomarker columns
-biomarker_columns = [
-    'C-reactive protein', 
-    'Rheumatoid factor',
-    'Neutrophill count', 
-    'Monocyte count', 
-    'White blood cell (leukocyte) count',
-    'Lymphocyte count',
-    'Red blood cell (erythrocyte) count'
+# Define list of HGVSc variants to exclude for G6PD
+G6PD_excluded_variants = [
+    "ENST00000393562.10:c.1388G>A",
+    "ENST00000393562.10:c.1003G>A",
+    "ENST00000393562.10:c.968T>C"
 ]
 
+# Apply the filter to remove those rows
+pathogenic_df_filtered = pathogenic_df_filtered[~((pathogenic_df_filtered['SYMBOL'] == "G6PD") & (pathogenic_df_filtered['HGVSc'].isin(G6PD_excluded_variants)))]
+
+CFH_excluded_variants = [
+    "ENST00000367429.9:c.3572C>T"
+]
+
+# Apply the filter to remove those rows
+pathogenic_df_filtered = pathogenic_df_filtered[~((pathogenic_df_filtered['SYMBOL'] == "CFH") & (pathogenic_df_filtered['HGVSc'].isin(CFH_excluded_variants)))]
 
 
-# Create an empty dictionary to store the results
-shapiro_results = {}
+# Add CARD14 as the whitelist
+card14_df = full_pathogenic_df[
+    (full_pathogenic_df['SYMBOL'] == 'CARD14') & 
+    (full_pathogenic_df['POS'] == 80182790)
+].copy()
 
-# Loop through each biomarker and apply the Shapiro-Wilk test for both datasets
-for biomarker in biomarker_columns:
-    # Drop missing values for both datasets
-    pathogenic_data = pathogenic_df[biomarker].dropna()
-    non_pathogenic_data = non_pathogenic_df[biomarker].dropna()
-    
-    # Perform Shapiro-Wilk test on both datasets
-    pathogenic_stat, pathogenic_p_value = stats.shapiro(pathogenic_data)
-    non_pathogenic_stat, non_pathogenic_p_value = stats.shapiro(non_pathogenic_data)
-    
-    # Store results for both datasets
-    shapiro_results[biomarker] = {
-        'Pathogenic_Statistic': pathogenic_stat, 
-        'Pathogenic_p-value': pathogenic_p_value,
-        'Non-Pathogenic_Statistic': non_pathogenic_stat, 
-        'Non-Pathogenic_p-value': non_pathogenic_p_value
-    }
+# Merge with iuis on SYMBOL == Gene to bring in the additional columns
+card14_df = card14_df.merge(iuis_info, left_on='SYMBOL', right_on='Gene', how='left')
+# Identify any columns in pathogenic_df not present in card14_df
+missing_cols = [col for col in pathogenic_df_filtered.columns if col not in card14_df.columns]
 
-# Convert the results into a DataFrame for easier viewing
-shapiro_results_df = pd.DataFrame(shapiro_results).T
+# Add those missing columns as empty (NaN)
+for col in missing_cols:
+    card14_df[col] = pd.NA
 
-# Add conclusions to the results for both datasets
-shapiro_results_df['Pathogenic_Conclusion'] = shapiro_results_df['Pathogenic_p-value'].apply(
-    lambda x: 'Normally distributed' if x > 0.05 else 'Not normally distributed'
-)
+# Reorder card14_df columns to match pathogenic_df
+card14_df = card14_df[pathogenic_df_filtered.columns]
 
-shapiro_results_df['Non-Pathogenic_Conclusion'] = shapiro_results_df['Non-Pathogenic_p-value'].apply(
-    lambda x: 'Normally distributed' if x > 0.05 else 'Not normally distributed'
-)
-
-# Separate biomarkers into normally distributed and non-normally distributed for both datasets
-normal_biomarkers_pathogenic = shapiro_results_df[shapiro_results_df['Pathogenic_Conclusion'] == 'Normally distributed'].index
-non_normal_biomarkers_pathogenic = shapiro_results_df[shapiro_results_df['Pathogenic_Conclusion'] == 'Not normally distributed'].index
-
-normal_biomarkers_non_pathogenic = shapiro_results_df[shapiro_results_df['Non-Pathogenic_Conclusion'] == 'Normally distributed'].index
-non_normal_biomarkers_non_pathogenic = shapiro_results_df[shapiro_results_df['Non-Pathogenic_Conclusion'] == 'Not normally distributed'].index
-
-# Create an empty dictionary to store p-values
-comparison_results = {}
-# Loop through each biomarker to perform the appropriate test
-for biomarker in biomarker_columns:
-    # Extract data for pathogenic and non-pathogenic
-    pathogenic_data = pathogenic_df[biomarker].dropna()
-    non_pathogenic_data = non_pathogenic_df_single_variant[biomarker].dropna()
-    
-    pathogenic_averages = pathogenic_df[biomarker].mean()
-    non_pathogenic_averages = non_pathogenic_df_single_variant[biomarker].mean()
-
-    # Perform Mann-Whitney U test if the biomarker is not normally distributed
-    stat, p_value = stats.mannwhitneyu(pathogenic_data, non_pathogenic_data)
-    
-    # Store the results
-    comparison_results[biomarker] = {'p-value': p_value, 'Pathogenic': pathogenic_averages, 'Non_Pathogenic': non_pathogenic_averages}
-
-# Convert the results into a DataFrame for easy viewing
-comparison_results_df = pd.DataFrame(comparison_results).T
-print(comparison_results_df)
+# Append to pathogenic_df
+pathogenic_df_filtered = pd.concat([pathogenic_df_filtered, card14_df], ignore_index=True)
+pathogenic_df = filtered_pathogenic_df
+pathogenic_df.to_csv('filtered_pathogenic_df.csv', index=False)
 
 
-# Create an empty dictionary to store p-values
-comparison_results = {}
-# Loop through each biomarker to perform the appropriate test
-for biomarker in biomarker_columns:
-    # Extract data for pathogenic and non-pathogenic
-    pathogenic_data = pathogenic_df[biomarker].dropna()
-    non_pathogenic_data = non_pathogenic_df[biomarker].dropna()
-    
-    pathogenic_averages = pathogenic_df[biomarker].mean()
-    non_pathogenic_averages = non_pathogenic_df[biomarker].median()
-    
-    # Perform Mann-Whitney U test if the biomarker is not normally distributed
-    stat, p_value = stats.mannwhitneyu(pathogenic_data, non_pathogenic_data)
-    
-    # Store the results
-    comparison_results[biomarker] = {'p-value': p_value, 'Pathogenic': pathogenic_averages, 'Non_Pathogenic': non_pathogenic_averages}
-
-# Convert the results into a DataFrame for easy viewing
-comparison_results_df = pd.DataFrame(comparison_results).T
-print(comparison_results_df)
+# Use the first 8 columns for filtering
+common_columns = updated_df1.columns[:8]  # assuming both DataFrames have same first 8 columns
 
 
+#Filter the updated_df DataFrames to only keep rows that are not in pathogenic_df_filtered
+# Perform anti-join to keep only rows in updated_df1 NOT in pathogenic_df
+non_pathogenic_df1 = updated_df1.merge(
+    pathogenic_df[common_columns],
+    on=list(common_columns),
+    how='left',
+    indicator=True
+).query('_merge == "left_only"').drop(columns=['_merge'])
+non_pathogenic_df2 = updated_df2.merge(
+    pathogenic_df[common_columns],
+    on=list(common_columns),
+    how='left',
+    indicator=True
+).query('_merge == "left_only"').drop(columns=['_merge'])
+non_pathogenic_df3 = updated_df3.merge(
+    pathogenic_df[common_columns],
+    on=list(common_columns),
+    how='left',
+    indicator=True
+).query('_merge == "left_only"').drop(columns=['_merge'])
+non_pathogenic_df4 = updated_df4.merge(
+    pathogenic_df[common_columns],
+    on=list(common_columns),
+    how='left',
+    indicator=True
+).query('_merge == "left_only"').drop(columns=['_merge'])
+non_pathogenic_df5 = updated_df5.merge(
+    pathogenic_df[common_columns],
+    on=list(common_columns),
+    how='left',
+    indicator=True
+).query('_merge == "left_only"').drop(columns=['_merge'])
+non_pathogenic_df6 = updated_df6.merge(
+    pathogenic_df[common_columns],
+    on=list(common_columns),
+    how='left',
+    indicator=True
+).query('_merge == "left_only"').drop(columns=['_merge'])
+
+# Group by 'Participant ID' and randomly select one row from each group
+non_pathogenic_df_single_variant1 = non_pathogenic_df1.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
+non_pathogenic_df_single_variant2 = non_pathogenic_df2.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
+non_pathogenic_df_single_variant3 = non_pathogenic_df3.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
+non_pathogenic_df_single_variant4 = non_pathogenic_df4.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
+non_pathogenic_df_single_variant5 = non_pathogenic_df5.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
+non_pathogenic_df_single_variant6 = non_pathogenic_df6.groupby('Participant ID').apply(lambda x: x.sample(n=1)).reset_index(drop=True)
 
 
+non_pathogenic_df = pd.concat([non_pathogenic_df_single_variant1, 
+                           non_pathogenic_df_single_variant2, 
+                           non_pathogenic_df_single_variant3, 
+                           non_pathogenic_df_single_variant4, 
+                           non_pathogenic_df_single_variant5, 
+                           non_pathogenic_df_single_variant6], ignore_index=True)
 
-# Ensure 'Age at recruitment' is numeric and handle missing values
-pathogenic_df['Age at recruitment'] = pd.to_numeric(pathogenic_df['Age at recruitment'], errors='coerce')
-non_pathogenic_df['Age at recruitment'] = pd.to_numeric(non_pathogenic_df['Age at recruitment'], errors='coerce')
-
-# Remove rows with missing age values
-pathogenic_df = pathogenic_df.dropna(subset=['Age at recruitment'])
-non_pathogenic_df = non_pathogenic_df.dropna(subset=['Age at recruitment'])
-
-# Create a combined DataFrame for easier plotting
-pathogenic_df['Group'] = 'Pathogenic'
-non_pathogenic_df['Group'] = 'Non-Pathogenic'
-combined_df = pd.concat([pathogenic_df[['Age at recruitment', 'Group']], non_pathogenic_df[['Age at recruitment', 'Group']]])
-
-# Plot age distribution using seaborn (boxplot)
-plt.figure(figsize=(10, 6))
-sns.boxplot(data=combined_df, x='Group', y='Age at recruitment', palette='Set1')
-plt.title('Age Distribution Comparison: Pathogenic vs Non-Pathogenic', fontsize=15)
-plt.xlabel('Group', fontsize=12)
-plt.ylabel('Age at Recruitment', fontsize=12)
-plt.show()
-
-# Optionally, display descriptive statistics (mean, median, etc.)
-pathogenic_stats = pathogenic_df['Age at recruitment'].describe()
-non_pathogenic_stats = non_pathogenic_df['Age at recruitment'].describe()
-
-print("Pathogenic Group Age Distribution:\n", pathogenic_stats)
-print("\nNon-Pathogenic Group Age Distribution:\n", non_pathogenic_stats)
+non_pathogenic_df.to_csv('non_pathogenic_df.csv', index=False)
 
 
+# Further filtering manual exlusion of G6PD and Females from X-linked variants
+
+pathogenic_df = pd.read_csv("filtered_pathogenic_df.csv")
+non_pathogenic_df = pd.read_csv("non_pathogenic_df.csv")
+# Split FORMAT_INFO by ":" and extract the AF value (3rd field, index 2)
+non_pathogenic_df["VAF"] = non_pathogenic_df["FORMAT_INFO"].str.split(":").str[2]
+non_pathogenic_df['VAF'] = pd.to_numeric(non_pathogenic_df['VAF'], errors='coerce')  # Coerce any errors to NaN
+# Step 1: Extract G6PD rows from pathogenic_df
+g6pd_rows = pathogenic_df[pathogenic_df['SYMBOL'] == 'G6PD']
+# Step 2: Append these rows to non_pathogenic_df
+non_pathogenic_df = pd.concat([non_pathogenic_df, g6pd_rows], ignore_index=True)
+# Optionally, ensure the column order is consistent (if required)
+non_pathogenic_df = non_pathogenic_df[pathogenic_df.columns]
+# Step 3: If you want to drop G6PD from pathogenic_df as well
+pathogenic_df = pathogenic_df[pathogenic_df['SYMBOL'] != 'G6PD']
 
 
-# Create a new DataFrame to count the occurrences of each consequence per gene
-consequence_counts = pathogenic_df.groupby(['SYMBOL', 'Consequence']).size().unstack(fill_value=0)
-
-# Calculate total counts for each gene
-gene_totals = consequence_counts.sum(axis=1)
-
-# Get the top 10 genes by total count (descending order)
-top_10_genes = gene_totals.sort_values(ascending=False).head(10).index
-
-# Filter consequence counts to include only the top 10 genes
-consequence_counts = consequence_counts.loc[top_10_genes]
-
-# Calculate the total number of variants in the dataset
-total_variants = gene_totals.sum()
-
-# Get the unique consequences that appear in the top 10 genes
-top_consequences = consequence_counts.columns[consequence_counts.sum(axis=0) > 0]
-
-# Plotting the stacked bar chart with higher resolution and wider bars for more space
-fig, ax = plt.subplots(figsize=(12, 8), dpi=300)  # Increase DPI for higher quality
-consequence_counts[top_consequences].plot(kind='bar', stacked=True, ax=ax, colormap='tab20', width=0.6)  # Adjust bar width here
-
-# Annotating each bar with the percentage distribution of the gene in the dataset
-for i, gene in enumerate(consequence_counts.index):
-    total = gene_totals[gene]
-    percentage = (total / total_variants) * 100
-    # Get the height of the stacked bars for the gene
-    height = gene_totals[gene]
-    ax.text(i, height + 0.05 * height, 
-            f'{percentage:.1f}%\n({total})', 
-            ha='center', va='bottom', fontsize=8, color='black')
-
-# Customize plot
-plt.title('Distribution of Variant Consequence Across LP/P Variants')
-plt.xlabel('Gene')
-plt.ylabel('Count of Variants')
-plt.xticks(rotation=90)  # Rotate x-axis labels for readability
-plt.legend(title='Consequence', bbox_to_anchor=(1.05, 1), loc='upper left')
-
-# Adjust y-axis to add more space at the top
-max_y = gene_totals[top_10_genes].max()
-ax.set_ylim(0, max_y * 1.15)  # Add 15% space to the top of the y-axis
-# Increase space between the y-axis and first stacked bar
-plt.subplots_adjust(left=0.1)  # Adjust left margin here (increase the value to add more space)
-# Increase space at the top for annotations
-plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust right margin for legend and space at the top
-
-# Show plot
-plt.show()
+# Step 1: Extract rows on chrX where Sex is female from pathogenic_df
+chrX_female_rows = pathogenic_df[(pathogenic_df['CHROM'] == 'chrX') & (pathogenic_df['Sex'].str.lower() == 'female')]
+# Step 2: Append these rows to non_pathogenic_df
+non_pathogenic_df = pd.concat([non_pathogenic_df, chrX_female_rows], ignore_index=True)
+# Ensure the column order is consistent (optional)
+non_pathogenic_df = non_pathogenic_df[pathogenic_df.columns]
+# Step 3: Remove these rows from pathogenic_df
+pathogenic_df = pathogenic_df[~((pathogenic_df['CHROM'] == 'chrX') & (pathogenic_df['Sex'].str.lower() == 'female'))]
 
 
+pathogenic_df.to_csv('final_pathogenic_df.csv', index=False)
+non_pathogenic_df.to_csv('non_pathogenic_df.csv', index=False)
 
 
-# Group by Gene and Ethnic background, then count occurrences
-ancestry_counts = pathogenic_df.groupby(['SYMBOL', 'Ethnic background']).size().unstack(fill_value=0)
+# =============================================================================
+# ANALYSIS OF THE DATA
+# =============================================================================
+pathogenic_df = pd.read_csv("final_pathogenic_df.csv")
+non_pathogenic_df = pd.read_csv("non_pathogenic_df.csv")
 
-# Sort by the total count of variants across all ethnic backgrounds for each gene (descending order)
-top_10_genes = ancestry_counts.sum(axis=1).sort_values(ascending=False).head(10).index
-ancestry_counts = ancestry_counts.loc[top_10_genes]
-
-# Normalize by dividing by the sum of each row to get percentages
-ancestry_percentages = ancestry_counts.div(ancestry_counts.sum(axis=1), axis=0) * 100
-
-# Get the unique ethnic backgrounds that appear in the top 10 genes
-top_ethnic_backgrounds = ancestry_percentages.columns[ancestry_percentages.sum(axis=0) > 0]
-
-# Plotting the horizontal bar chart
-fig, ax = plt.subplots(figsize=(10, 8), dpi=300)  # Increase DPI for better image quality
-ancestry_percentages[top_ethnic_backgrounds].plot(kind='barh', stacked=True, ax=ax, colormap='tab20')
-
-# Customize plot
-plt.title('Ancestry Breakdown of Gene Variants (Top 10 Genes)')
-plt.xlabel('Percentage of Variants')
-plt.ylabel('Gene')
-plt.legend(title='Ethnic Background', bbox_to_anchor=(1.05, 1), loc='upper left')
-
-# Increase space at the top for readability
-plt.tight_layout(rect=[0, 0, 0.85, 1])
-
-# Show plot
-plt.show()
-
-
-
-
-# Function to compare allele frequencies using Mann-Whitney U test
-def compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df, column):
-    path_values = pathogenic_df[column].dropna()
-    non_path_values = non_pathogenic_df[column].dropna()
-
-    if len(path_values) < 2:
-        print(f"Not enough data in {column} for meaningful comparison.")
-        return
-
-    stat, p_value = stats.mannwhitneyu(path_values, non_path_values, alternative="two-sided")
-
-    print(f"Comparison for {column}:")
-    print(f"  - Median (Pathogenic): {path_values.mean():.6f}")
-    print(f"  - Median (Non-Pathogenic): {non_path_values.mean():.6f}")
-    print(f"  - Mann-Whitney U statistic: {stat:.3f}, p-value: {p_value:.6f}")
-    print("-" * 50)
-
-# Run the test for both allele frequency columns
-compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df_single_variant, 'gnomADg_AF')
-compare_allele_frequencies_mannwhitney(pathogenic_df, non_pathogenic_df_single_variant, 'gnomADe_AF')
 
